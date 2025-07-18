@@ -27,6 +27,8 @@ struct linked_list *linked_list_create(void) {
     return NULL;
 
   ll->head = NULL;
+  ll->tail = NULL;
+  ll->size = 0;
   return ll;
 }
 
@@ -48,30 +50,25 @@ bool linked_list_delete(struct linked_list *ll) {
 size_t linked_list_size(struct linked_list *ll) {
   if (ll == NULL)
     return SIZE_MAX;
-  size_t sz = 0;
-  struct node *curr = ll->head;
-  while (curr != NULL) {
-    sz++;
-    curr = curr->next;
-  }
-
-  return sz;
+  return ll->size;
 }
 
 bool linked_list_insert_end(struct linked_list *ll, unsigned int data) {
   if (ll == NULL)
     return false;
+
   struct node *new_node = create_node(data);
   if (new_node == NULL)
     return false;
-  if (ll->head == NULL) {
+
+  if (ll->head == NULL) { // List is empty
     ll->head = new_node;
+    ll->tail = new_node;
   } else {
-    struct node *curr = ll->head;
-    while (curr->next != NULL)
-      curr = curr->next;
-    curr->next = new_node;
+    ll->tail->next = new_node;
+    ll->tail = new_node;
   }
+  ll->size++;
   return true;
 }
 
@@ -87,34 +84,37 @@ bool linked_list_insert_front(struct linked_list *ll, unsigned int data) {
   new_node->next = ll->head;
   ll->head = new_node;
 
+  if (ll->tail == NULL) // If the list was empty
+    ll->tail = new_node;
+
+  ll->size++;
   return true;
 }
 
 bool linked_list_insert(struct linked_list *ll, size_t index,
                         unsigned int data) {
-  if (ll == NULL || malloc_fptr == NULL)
+  if (ll == NULL || index > ll->size || malloc_fptr == NULL)
     return false;
 
   if (index == 0)
     return linked_list_insert_front(ll, data);
 
-  struct node *curr = ll->head;
-  for (size_t i = 0; i < index - 1; i++) {
-    if (curr == NULL) // Linked list too short
-      return false;
+  if (index == ll->size)
+    return linked_list_insert_end(ll, data);
 
-    curr = curr->next;
-  }
+  struct node *prev = ll->head;
 
+  for (size_t i = 0; i < index - 1; i++)
+    prev = prev->next;
+
+  struct node *curr = create_node(data);
   if (curr == NULL)
     return false;
 
-  struct node *new_node = create_node(data);
-  if (new_node == NULL)
-    return false;
+  curr->next = prev->next;
+  prev->next = curr;
 
-  new_node->next = curr->next;
-  curr->next = new_node;
+  ll->size++;
   return true;
 }
 
@@ -135,52 +135,43 @@ size_t linked_list_find(struct linked_list *ll, unsigned int data) {
 }
 
 bool linked_list_remove(struct linked_list *ll, size_t index) {
-  if (ll == NULL || ll->head == NULL || free_fptr == NULL)
+  if (ll == NULL || ll->head == NULL || free_fptr == NULL || index >= ll->size)
     return false;
   struct node *curr = NULL;
 
   if (index == 0) {
     curr = ll->head;
     ll->head = ll->head->next;
+    if (ll->head == NULL)
+      ll->tail = NULL;
   } else {
     struct node *prev = ll->head;
-    for (size_t i = 0; i < index - 1; i++) {
-      if (prev == NULL) // linked list is shorter than index
-        return false;
+    for (size_t i = 0; i < index - 1; i++)
       prev = prev->next;
-    }
-
-    if (prev == NULL || prev->next == NULL)
-      return false;
 
     curr = prev->next;
     prev->next = curr->next;
+
+    if (prev->next == NULL)
+      ll->tail = NULL;
   }
   free_fptr(curr);
+  ll->size--;
   return true;
 }
 
 struct iterator *linked_list_create_iterator(struct linked_list *ll,
                                              size_t index) {
-  if (ll == NULL || malloc_fptr == NULL)
+  if (ll == NULL || malloc_fptr == NULL || index >= ll->size)
     return NULL;
+
   struct iterator *itr = malloc_fptr(sizeof(struct iterator));
   if (!itr)
     return NULL;
 
   struct node *curr = ll->head;
-  for (size_t i = 0; i < index; i++) {
-    if (curr == NULL) {
-      free_fptr(itr);
-      return NULL;
-    }
+  for (size_t i = 0; i < index; i++)
     curr = curr->next;
-  }
-
-  if (curr == NULL) {
-    free_fptr(itr);
-    return NULL;
-  }
 
   itr->ll = ll;
   itr->current_index = index;
